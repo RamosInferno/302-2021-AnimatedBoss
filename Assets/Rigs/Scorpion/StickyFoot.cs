@@ -2,11 +2,18 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+using UnityEngine.Animations.Rigging;
+
 public class StickyFoot : MonoBehaviour
 {
+    public static float moveThreshold = 2;
+
     public Transform stepPosition;
 
     public AnimationCurve verticalStepMovement;
+
+
+    private Quaternion startingRotation;
 
     private Vector3 previousPlantedPosition;
     private Quaternion previousPlantedRotation = Quaternion.identity;
@@ -17,16 +24,31 @@ public class StickyFoot : MonoBehaviour
     private float timeLength = .25f;
     private float timeCurrent = 0;
 
+    public bool isAnimating
+    {
+        get
+        {
+            return (timeLength < timeLength);
+        }
+    }
+
+    public bool footHasMoved = false;
+
+    Transform kneePole;
+
+    private void Start()
+    {
+        kneePole = transform.GetChild(0);
+
+        startingRotation = transform.localRotation;
+    }
+
 
 
     void Update()
     {
-        if (CheckIfCanStep())
-        {
-            DoRaycast();
-        }
 
-        if(timeCurrent < timeLength)
+        if(isAnimating)
         {
 
             timeCurrent += Time.deltaTime;
@@ -42,6 +64,18 @@ public class StickyFoot : MonoBehaviour
 
             transform.rotation = AnimMath.Lerp(previousPlantedRotation, plantedRotation, p);
 
+
+            Vector3 vFromCenter = transform.position - transform.parent.position;
+
+            vFromCenter.y = 0;
+            vFromCenter.Normalize();
+            vFromCenter *= 3;
+            vFromCenter.y += 2.5f;
+            //vFromCenter += transform.position;
+
+            kneePole.position = vFromCenter + transform.position;
+
+
         }
         else
         {
@@ -53,17 +87,16 @@ public class StickyFoot : MonoBehaviour
        
     }
 
-    bool CheckIfCanStep()
+   public bool TryToStep()
     {
+        if (isAnimating) return false;
+
+        if (footHasMoved) return false;
 
        Vector3 vBetween = transform.position - stepPosition.position;
-        float threshhold = 5;
 
-        return (vBetween.sqrMagnitude > threshhold * threshhold);
-    }
-
-    void DoRaycast()
-    {
+        if (vBetween.sqrMagnitude < moveThreshold * moveThreshold) return false;
+    
         Ray ray = new Ray(stepPosition.position + Vector3.up, Vector3.down);
 
         Debug.DrawRay(ray.origin, ray.direction * 3);
@@ -74,13 +107,21 @@ public class StickyFoot : MonoBehaviour
             previousPlantedPosition = transform.position;
             previousPlantedRotation = transform.rotation;
 
+            transform.localRotation = startingRotation;
+
             plantedPosition = hit.point;
-            plantedRotation = Quaternion.FromToRotation(transform.up, hit.normal);
+            plantedRotation =             
+                Quaternion.FromToRotation(transform.up, hit.normal) * transform.rotation;
 
 
             // begin animation
             timeCurrent = 0;
 
+            footHasMoved = true;
+
+            return true;
+
         }
+        return false;
     }
 }
